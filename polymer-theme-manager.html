@@ -1,0 +1,402 @@
+<link rel="import" href="../polymer/polymer.html">
+<script src="./cssparser.js"></script>
+
+<!--
+Element to apply theming on a Polymer application.
+
+Because of the limitations that CSSShim is having (both in v1 and v2 of 
+webcomponents shims) we need to put extra work to mak sure that themes work
+well in all cases.
+
+This means that it is best to have:
+* for each set - a default theme that contains all used variables
+* themes that override only variables contained in the default them for a set
+* defaults of different sets should not overlap variable names and should not
+repend on variables not defined in them
+
+If those rules are followed the theming will work everywhere and in every 
+condition as expected and defined by the CSS standards.
+
+Note that the limitation noted above apply only to CSS variables, you can 
+continue using css properties as per CSS Level 4.
+
+Note also that only in non-shimmed version defaults can be used from the elements
+themselves. In shimmed mode we always would like to apply the default theme 
+at start.
+-->
+<dom-module id="polymer-theme-manager">
+  <template>
+    <style>
+      :host {
+        display: none;
+      }
+    </style>
+    <slot></slot>
+  </template>
+  <script>
+    (function () {
+      /**
+       * Registry for all active instances of the component in the current 
+       * document.
+       *
+       * @private
+       * @type {!Array<Element>}
+       */
+      var instances = [];
+      /** 
+       * Contains the settings for each instance.
+       *
+       * @private
+       * @type {!Array<Array<string>>}
+       */
+      var settings = [];
+      /** 
+       * Reference to the document the element has been initially registerd in. 
+       */
+      var initialDocument = document;
+
+      /** 
+       * Store the polymer version for checks.
+       *
+       * @private
+       * @type {!number}
+       */
+      var polymerVersion = (function () {
+        if (Polymer.Element) {
+          return parseInt(Polymer.version, 10);
+        } else {
+          return 1;
+        }
+      })();
+      /**
+       * Flag if we use Shim
+       * @private
+       * @type {!boolean}
+       */
+      var isCssShimmed = (function () {
+        if (polymerVersion >= 2) {
+          return !ShadyCSS.nativeCss;
+        } else if (polymerVersion === 1) {
+          return !Polymer.Settings.useNativeCSSProperties;
+        }
+      })();
+      /**
+       * Regular expression to find all variables in css text.
+       * @private {RegExp}
+       */
+      var MatcherRE = /\s*--[A-Za-z-_]*/mg;
+      Polymer({
+        is: 'polymer-theme-manager',
+        hostAttributes: {
+          hidden: true
+        },
+        properties: {
+          /**
+           * A name for the theme to use as 'default' or 'parent' theme when
+           * running in shimmed mode.
+           */
+          defaultThemeName: {
+            type: String
+          },
+          /** 
+           * The name of the theme to apply.
+           */
+          themeName: {
+            type: String
+          },
+          /** Flag if we should output detailes to the console. */
+          debug: {
+            readOnly: true,
+            type: Boolean,
+            value: false
+          },
+          /** 
+           * Helper flag, set to true when we are attached and ready to 
+           * process themes.
+           */
+          __ready: {
+            type: Boolean,
+            value: false
+          },
+          /** Reference to the style element used to style the document from this instance */
+          __styleElement: {
+            type: Object
+          }
+        },
+        /** @override */
+        observers: ['__changeThemeHandler(themeName, __ready)'],
+
+        /** @override */
+        attached: function () {
+          if (this.ownerDocument !== initialDocument) {
+            if (this.debug) console.warn('Element created in one document but ' +
+              'attached to a different one. This is not supported properly');
+          }
+          this.__registerInstance();
+          this.__ready = true;
+        },
+
+        /** @override */
+        detached: function () {
+          __unregisterInstance();
+          // Attempt to restore to default theme if there is one  
+          if (isCssShimmed && this.defaultThemeName) {
+            this.__changeThemeHandler('', true);
+          }
+          this.__removeArtefact();
+        },
+
+        /**
+         * Pertform some checks on attach that we need in order to notify user 
+         * for issues with the setup.
+         */
+        __registerInstance: function () {
+          if (instances.includes(this)) {
+            throw new Error('Element is already in the document, this should' +
+              ' not happen.');
+          }
+          var index = instances.indexOf(null);
+          if (index === -1) index = instances.length;
+          instances[index] = this;
+          settings[index] = null;
+          // If we are using the shim we require default theme in order to be able
+          // to reset the values from a theme to a neutral state. There is no other
+          // way to get back to before applying any theme.
+          if (isCssShimmed) {
+            if (!this.defaultThemeName) {
+              if (this.debug) {
+                console.error(
+                  'CSS shim is used and no deault theme is provided, ' +
+                  'you will not be able to reset theme(s).');
+              }
+            } else {
+              var theme = this.querySelector('polymer-theme[name="' +
+                this.defaultThemeName + '"]');
+              if (theme == null) {
+                if (this.debug) {
+                  console.warn('Default theme does not exists.');
+                }
+              }
+            }
+          }
+        },
+
+        /**
+         * When detaching unregister the instance from compare stores.
+         */
+        __unregisterInstance: function() {
+          var index = instances.indexOf(this);
+          if (index !== -1) {
+            settings[index] = null;
+            instance[index] = null;
+          }
+        },
+
+        /**
+         * Given a name of a theme attempts to retrieve its css content/text.
+         * 
+         * @param {!string} themeName
+         * @return {!string}
+         */
+        __getThemeContent: function (themeName) {
+          var element = this.querySelector('polymer-theme[name="' + 
+              themeName + '"]');
+          if (element != null) {
+            var content = element.textContent;
+            return content.trim();
+          } else if (this.debug) {
+            console.watn('Attempted to read non-existing theme: ' +
+                themeName);
+          }
+          return '';
+        },
+
+        __extractCssVariablesFromText: function(csstext) {
+          if (polymerVersion == 1) {
+            var variables = [];
+            var parsed = Polymer.CssParse.parse(csstext);
+            if (parsed.rules) {
+              parsed.rules.forEach(function (rule) {
+                var csstext = rule.parsedCssText;
+                var match = null;
+                MatcherRE.lastIndex = 0;
+                while (match = MatcherRE.exec(csstext)) {
+                  variables.push(match);
+                }
+              });
+            }
+            return variables;
+          } else if (polymerVersion == 2) {
+            var parser = window.__800812_getParser();
+
+            return [];
+          }
+        },
+
+        /**
+         * Additional work done in debug moed and only if we are shimming the CSS
+         * Parse the CSS text content of a default style and extract all variables
+         * from it. Then record them for reference. Also compare to other registered
+         * default themes to see if there is an overlap of custom variables and
+         * warn about it.
+         * @param {string} csstext
+         */
+        __assignVariablesForDefaultTheme: function (csstext) {
+          if (isCssShimmed && this.debug) {
+            var variables = this.__extractCssVariablesFromText(csstext);
+            var list = variables.filter(function(variableName, index) {
+              for (var i = 0; i < settings.length; i++) {
+                var comparables = settings[i];
+                if (comparables != null) {
+                  if (comparables.includes(variableName)) {
+                    return true;
+                  }
+                }
+              }
+              return false;                
+            });
+            if (list.length > 0) {
+              console.warn('You have overlapping variables in several ' + 
+                  'default themes active!');
+              console.log(list.join(', '));
+              console.warn('You might consider cleaning up the defaults' + 
+                  ' for your different sets');
+            }
+            settings[instances.indexOf(this)] = variables;
+          }
+        },
+
+        __assignThemeVariables: function(csstext) {
+          if (isCssShimmed && this.debug) {
+            var variables = this.__extractCssVariablesFromText(csstext);
+            // First check that all variables in the theme exist in its
+            // default
+            var defaults = settings[instances.indexOf(this)];
+            var list = [];
+            if (defaults != null) {
+              list = variables.filter(function(variableName, index) {
+                return !defaults.includes(variableName);
+              });
+              if (list.length > 0) {
+                console.warn('Your custom theme includes variables that are '+
+                    'not defined in a default theme');
+                console.log(list.join(', '));
+                console.warn('You will not be able to reset these vars');
+              }
+            }
+            // Now check if some of those are defined in other default themes
+            // and warn about it.
+            if (list.length > 0) {
+              var remoteList = [];
+              for (var i = 0; i < instances.length; i++) {
+                if (instances[i] != this) {
+                  list.forEach(function(variable) {
+                    if (instances[i].includes(variable) && 
+                        !remoteList.includes(variable)) {
+                      remoteList.push(variable);
+                    }
+                  });
+                }
+              }
+              if (remoteList.length > 0) {
+                console.warn(
+                    'Your theme defines varianles which are defaulted in ' +
+                    'another set of themes');
+                console.log(remoteList.join(', '));
+                console.warn(
+                    'This is bad practice as in shim last occurence wins');
+              }
+            }
+          }
+        },
+
+        /**
+         * Handles the change in theme name, we also require the ready flag
+         * as we need to make sure we are ready to style.
+         * 
+         * @param {string} themeName
+         * @param {boolean} isReady
+         */
+        __changeThemeHandler: function (themeName, isReady) {
+          console.log('Bau', themeName, isReady);
+          var csstext = '';
+          var content = '';
+          if (isReady) {
+            if (themeName) {
+              if (isCssShimmed) {
+                console.log('Is shimmed');
+                if (this.defaultThemeName) {
+                  content = this.__getThemeContent(this.defaultThemeName);
+                  if (!!content.length) {
+                    this.__assignVariablesForDefaultTheme(content);
+                    csstext += content;
+                  }
+                }
+                if (this.defaultThemeName != themeName) {
+                  content = this.__getThemeContent(themeName);
+                  if (!!content.length) {
+                    this.__assignThemeVariables(content);
+                    csstext += (' ' + content);
+                  }
+                }
+              } else {
+                console.log('Not shimmed');
+                csstext = ((this.defaultThemeName) ?
+                  this.__getThemeContent(this.defaultThemeName) : '') +
+                  this.__getThemeContent(themeName);
+              }
+            } else {
+              // Not theme but we are shimmed and we have a default - apply the default
+              if (this.defaultThemeName && isCssShimmed) {
+                csstext = this.__getThemeContent(this.defaultThemeName);
+              }
+            }
+            console.log('Apply!', csstext)
+            this.__applyTheme(csstext);
+          }
+        },
+
+        /**
+         * Remove the style element we use from the document.
+         */
+        __removeArtefact: function() {
+          if (this.__styleElement != null) {
+            this.__styleElement.remove();
+            this.__styleElement = null;
+          }
+        },
+
+        /**
+         * Given CSS text applied it on the document level in a custom style 
+         * sheet
+         *
+         * @param {string}
+         */
+        __applyTheme: function (csstext) {
+          var styleElement = null;
+          this.__removeArtefact();
+          switch (polymerVersion) {
+            case 1:
+              styleElement = document.createElement('style', 'custom-style');
+              styleElement.textContent = csstext;
+              break;
+            case 2:
+            case 3:
+              var style = document.createElement('style', { 
+                is: 'custom-style' 
+              });
+              style.textContent = csstext;
+              styleElement = document.createElement('custom-style');
+              styleElement.appendChild(style);
+              break;
+            default:
+              throw new Error('Unknown polymer version: ' + polymerVersion);
+          }
+          this.__styleElement = styleElement;
+          document.body.appendChild(this.__styleElement);
+          Polymer.updateStyles();
+        }
+      });
+    })();
+  </script>
+</dom-module>
