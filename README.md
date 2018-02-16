@@ -1,4 +1,4 @@
-# \<polymer-theme-manager\>
+# \<theme-manager\>
 
 Helper to apply themes on Polymer based apps
 

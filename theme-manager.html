@@ -24,7 +24,7 @@ Note also that only in non-shimmed version defaults can be used from the element
 themselves. In shimmed mode we always would like to apply the default theme 
 at start.
 -->
-<dom-module id="polymer-theme-manager">
+<dom-module id="theme-manager">
   <template>
     <style>
       :host {
@@ -86,7 +86,7 @@ at start.
        */
       var MatcherRE = /\s*--[A-Za-z-_]*/mg;
       Polymer({
-        is: 'polymer-theme-manager',
+        is: 'theme-manager',
         hostAttributes: {
           hidden: true
         },
@@ -106,7 +106,6 @@ at start.
           },
           /** Flag if we should output detailes to the console. */
           debug: {
-            readOnly: true,
             type: Boolean,
             value: false
           },
@@ -128,12 +127,21 @@ at start.
 
         /** @override */
         attached: function () {
+          if (this.debug)
+            console.log('Shimmed CSS ', isCssShimmed, 'Polymer Version:', 
+                polymerVersion);
           if (this.ownerDocument !== initialDocument) {
             if (this.debug) console.warn('Element created in one document but ' +
               'attached to a different one. This is not supported properly');
           }
           this.__registerInstance();
           this.__ready = true;
+          // Polymer 1 waits for everything in the observer to be defined,
+          // but when shimming we need to show the result of the default theme..
+          if (polymerVersion == 1 && isCssShimmed && this.defaultThemeName && 
+              !this.themeName) {
+            this.themeName = this.defaultThemeName;
+          }
         },
 
         /** @override */
@@ -171,7 +179,7 @@ at start.
               }
             } else {
               var theme = this.querySelector('polymer-theme[name="' +
-                this.defaultThemeName + '"]');
+                  this.defaultThemeName + '"]');
               if (theme == null) {
                 if (this.debug) {
                   console.warn('Default theme does not exists.');
@@ -205,7 +213,7 @@ at start.
             var content = element.textContent;
             return content.trim();
           } else if (this.debug) {
-            console.watn('Attempted to read non-existing theme: ' +
+            console.warn('Attempted to read non-existing theme: ' +
                 themeName);
           }
           return '';
@@ -221,14 +229,13 @@ at start.
                 var match = null;
                 MatcherRE.lastIndex = 0;
                 while (match = MatcherRE.exec(csstext)) {
-                  variables.push(match);
+                  variables.push(match[0].trim());
                 }
               });
             }
             return variables;
           } else if (polymerVersion == 2) {
             var parser = window.__800812_getParser();
-
             return [];
           }
         },
@@ -246,6 +253,7 @@ at start.
             var variables = this.__extractCssVariablesFromText(csstext);
             var list = variables.filter(function(variableName, index) {
               for (var i = 0; i < settings.length; i++) {
+                if (i == instances.indexOf(this)) continue;
                 var comparables = settings[i];
                 if (comparables != null) {
                   if (comparables.includes(variableName)) {
@@ -254,7 +262,8 @@ at start.
                 }
               }
               return false;                
-            });
+            }, this);
+
             if (list.length > 0) {
               console.warn('You have overlapping variables in several ' + 
                   'default themes active!');
@@ -318,13 +327,14 @@ at start.
          * @param {boolean} isReady
          */
         __changeThemeHandler: function (themeName, isReady) {
-          console.log('Bau', themeName, isReady);
+          if (this.debug && isReady) {
+            console.log('Changing theme to: ' + themeName || 'emptry strig');
+          }
           var csstext = '';
           var content = '';
           if (isReady) {
             if (themeName) {
               if (isCssShimmed) {
-                console.log('Is shimmed');
                 if (this.defaultThemeName) {
                   content = this.__getThemeContent(this.defaultThemeName);
                   if (!!content.length) {
@@ -351,7 +361,6 @@ at start.
                 csstext = this.__getThemeContent(this.defaultThemeName);
               }
             }
-            console.log('Apply!', csstext)
             this.__applyTheme(csstext);
           }
         },

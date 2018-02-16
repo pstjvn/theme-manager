@@ -3,17 +3,20 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
-
-    <title>polymer-theme-manager demo</title>
-
+    <title>theme-manager demo</title>
     <script>
-      // Comment out this to test in shimmed mode.
-      ShadyCSS = { shimcssproperties: false};
+      // Comment out this to test in shimmed mode for Polymer 2
+      // ShadyCSS = { shimcssproperties: true};
+      // Shimming for Polymer 1
+      // window.Polymer = { 
+      //   dom: 'shady',
+      //   useNativeCSSProperties: true 
+      // };
     </script>
     <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
     <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
     <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
-    <link rel="import" href="../polymer-theme-manager.html">
+    <link rel="import" href="../theme-manager.html">
     <custom-style>
       <style is="custom-style" include="demo-pages-shared-styles">
       </style>
@@ -21,9 +24,8 @@
   </head>
   <body>
     <div class="vertical-section-container centered">
-      <h3>Basic polymer-theme-manager demo</h3>
+      <h3>Basic theme-manager demo</h3>
       <demo-snippet>
-        <!-- <dom-bind> -->
         <template>
           <dom-bind>
             <template is="dom-bind">
@@ -37,7 +39,7 @@
                 <option value="ivan">Ivan</option>
               </select>
               <span>Defaults</span><span>[[_value]]</span>
-              <polymer-theme-manager default-theme-name="default" theme-name="[[_value]]" debug>
+              <theme-manager default-theme-name="default" theme-name="[[_value]]" debug>
                 <polymer-theme name="default">
                   html {
                     --var-a: red;
@@ -50,7 +52,7 @@
                     --var-c: orange;
                   }
                 </polymer-theme>
-              </polymer-theme-manager>
+              </theme-manager>
             </template>
           </dom-bind>
         </template>      

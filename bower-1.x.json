@@ -1,7 +1,7 @@
 {
-  "name": "polymer-theme-manager",
+  "name": "theme-manager",
   "description": "Helper to apply themes on Polymer based apps",
-  "main": "polymer-theme-manager.html",
+  "main": "theme-manager.html",
   "dependencies": {
     "polymer": "Polymer/polymer#^1.9"
   },
