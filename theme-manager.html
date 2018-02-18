@@ -236,6 +236,15 @@ at start.
             return variables;
           } else if (polymerVersion == 2) {
             // var parser = window.__800812_getParser();
+            // Polymer 2 has an issue with global themes when using the shim
+            // and forcing it to shim custom properties (css variables). for
+            // this reason it makes no sense to include the parser at an attempt
+            // to debug theming if the approch will not actually work. If you need
+            // to test your themes just run them in Polymer 1 environment (all
+            // included in the variants, run it from the demo) and do the 
+            // checks there. 
+            // If you still have issues with themes specific to Polymer 2 in
+            // native mode please let us know (issues in github).
             return [];
           }
         },
@@ -350,7 +359,6 @@ at start.
                   }
                 }
               } else {
-                console.log('Not shimmed');
                 csstext = ((this.defaultThemeName) ?
                   this.__getThemeContent(this.defaultThemeName) : '') +
                   this.__getThemeContent(themeName);
@@ -362,6 +370,7 @@ at start.
               }
             }
             this.__applyTheme(csstext);
+            this.fire('theme-changed');
           }
         },
 
