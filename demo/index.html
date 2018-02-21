@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
     <title>theme-manager demo</title>
+    <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
     <script>
       // Comment out this to test in shimmed mode for Polymer 2
       // ShadyCSS = { shimcssproperties: true};
@@ -13,10 +14,9 @@
       //   useNativeCSSProperties: true 
       // };
     </script>
-    <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
     <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
     <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
-    <link rel="import" href="../theme-manager.html">
+    <link rel="import" href="./test-element.html">
     <custom-style>
       <style is="custom-style" include="demo-pages-shared-styles">
       </style>
@@ -27,34 +27,12 @@
       <h3>Basic theme-manager demo</h3>
       <demo-snippet>
         <template>
-          <dom-bind>
-            <template is="dom-bind">
-              <style is="custom-style">
-                span {
-                  background-color: var(--var-b, green);
-                }
-              </style>
-              <select value="{{_value::change}}">
-                <option value="default">Default</option>
-                <option value="ivan">Ivan</option>
-              </select>
-              <span>Defaults</span><span>[[_value]]</span>
-              <theme-manager default-theme-name="default" theme-name="[[_value]]" debug>
-                <polymer-theme name="default">
-                  html {
-                    --var-a: red;
-                    --var-b: blue;
-                  }
-                </polymer-theme>
-                <polymer-theme name="ivan">
-                  html {
-                    --var-b: gray;
-                    --var-c: orange;
-                  }
-                </polymer-theme>
-              </theme-manager>
-            </template>
-          </dom-bind>
+          <test-element>
+            <span>External styled content.</span>
+          </test-element>
+          <div>
+            <span>Content that is not styled with variable. Should remain the same.</span>
+          </div>
         </template>      
       </demo-snippet>
     </div>

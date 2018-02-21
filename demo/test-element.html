@@ -1,0 +1,50 @@
+
+<link rel="import" href="../../polymer/polymer.html">
+<link rel="import" href="../theme-manager.html">
+
+<dom-module id="test-element">
+  <template>
+    <style is="custom-style">
+      /* this does not work as intended, in shadycss this gets lower priority 
+      than the slotted span and gets overriden, in native css it does not. */
+      span {
+        background-color: var(--var-b, yellow);
+      }
+      div ::slotted(span) {
+        background-color: var(--var-b, green);
+      }
+    </style>
+    <select value="{{_value::change}}">
+      <option value="default">Default</option>
+      <option value="ivan">Ivan</option>
+    </select>
+    <span>Internal out of div. should be yellow without theming.</span>
+    <br>
+    <div>
+      <slot></slot>
+      <br>
+      <!-- in shim mode selector for slotted gets rewritten as higher specificity -->
+      <span>Internal styled content, should be yellow in native and green in shim.</span>
+      <span>[[_value]]</span>
+    </div>
+    <theme-manager default-theme-name="default" theme-name="[[_value]]" debug>
+      <polymer-theme name="default">
+        html {
+          --var-a: red;
+          --var-b: blue;
+        }
+      </polymer-theme>
+      <polymer-theme name="ivan">
+        html {
+          --var-b: gray;
+          --var-c: orange;
+        }
+      </polymer-theme>
+    </theme-manager>
+  </template>
+  <script>
+    Polymer({
+      is: 'test-element'
+    });
+  </script>
+</dom-module>
